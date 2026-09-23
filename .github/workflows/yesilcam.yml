@@ -1,8 +1,13 @@
-name: fixtv
+name: yesilcam
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
+# Çift yayın çalışmasını ve çakışmayı önleyen kural
+concurrency:
+  group: yesilcam-stream
+  cancel-in-progress: true
 
 jobs:
   yayin:
@@ -23,23 +28,27 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends ffmpeg ca-certificates openssl
-        pip install requests
+        pip install requests yt-dlp
 
     - name: 📥 Kayıtlı State Dosyasını İndir
       continue-on-error: true
       run: |
-        curl -sL https://github.com/${{ github.repository }}/releases/download/state-data/state_fixtv.json -o state_fixtv.json
+        curl -sL https://github.com/${{ github.repository }}/releases/download/state-data/state_yesilcam.json -o state_yesilcam.json
 
     - name: 🚀 Yayını başlat
       env:
-        STATE_FILE_NAME: "state_fixtv.json"
-      run: python -u deneme3.py
+        STATE_FILE_NAME: "state_yesilcam.json"
+        STREAM_KEY: ${{ secrets.STREAM_KEY }}
+        M3U_URL: ${{ secrets.M3U_URL }}
+        LOGO_URL: ${{ secrets.LOGO_URL }}
+        GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
+      run: python -u yesilcam.py
 
     - name: 💾 Son Durumu Release Üzerinde Güncelle
       if: always()
       uses: softprops/action-gh-release@v1
       with:
-        files: state_fixtv.json
+        files: state_yesilcam.json
         tag_name: state-data
         name: "Yayın Kaldığı Yer (State)"
         draft: false
@@ -47,13 +56,13 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: 🔁 Süre doldu, yeni run'ı tetikle
-      if: '${{ !cancelled() }}'
+    - name: 🔁 Süre Doldu veya İptal Edildi, Yeni Run'ı Tetikle
+      if: always()
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
         curl -X POST \
           -H "Authorization: token $GH_TOKEN" \
           -H "Accept: application/vnd.github+json" \
-          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/maxdeneme.yml/dispatches" \
-          -d '{"ref":"${{ github.ref_name }}"}'
+          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/yesilcam.yml/dispatches" \
+          -d '{"ref":"main"}'
